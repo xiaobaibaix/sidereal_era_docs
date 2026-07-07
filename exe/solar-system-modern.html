@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmos Generator - Procedural Solar System</title>
+    <style>
+        :root {
+            --accent: #00d2ff;
+            --accent-secondary: #7c3aed;
+            --bg-dark: rgba(10, 10, 20, 0.85);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: radial-gradient(ellipse at center, #0a0a1a 0%, #000000 100%);
+            color: #eee;
+            font-family: var(--font-main);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        #gui-overlay {
+            position: relative;
+            z-index: 10;
+            padding: 25px;
+            pointer-events: none;
+            display: grid;
+            grid-template-columns: 350px 1fr 300px;
+            gap: 20px;
+            height: 100vh;
+            align-content: start;
+        }
+
+        .panel {
+            background: var(--bg-dark);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 24px;
+            pointer-events: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            animation: slideInLeft 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .panel-right {
+            animation: slideInRight 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            height: fit-content;
+        }
+
+        @keyframes slideInLeft {
+            from { transform: translateX(-40px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(40px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .header h1 {
+            font-size: 1.3rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 0.7rem;
+            color: #666;
+            margin-bottom: 25px;
+            letter-spacing: 1px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #aaa;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        .control-group label span {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            appearance: none;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+            transition: transform 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 35px;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .type-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .type-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--panel-border);
+            color: #fff;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 1px;
+            font-weight: 500;
+        }
+
+        .type-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .type-btn.active {
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            border-color: var(--accent);
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 5px 20px rgba(0, 210, 255, 0.3);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+            color: #fff;
+            border-color: transparent;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 210, 255, 0.4);
+        }
+
+        .btn-secondary {
+            border-color: var(--accent-secondary);
+            color: var(--accent-secondary);
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent));
+        }
+
+        .footer-info {
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #444;
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Loading Screen */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.8s ease;
+        }
+
+        .loader-circle {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 210, 255, 0.2);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loader-text {
+            margin-top: 25px;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            color: var(--accent);
+            text-transform: uppercase;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .info-text {
+            font-size: 0.65rem;
+            color: #555;
+            line-height: 1.8;
+            margin-top: 15px;
+        }
+
+        .info-text b {
+            color: var(--accent);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+
+        .checkbox-group input {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="loader-circle"></div>
+        <div class="loader-text">Initializing Cosmos...</div>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div id="gui-overlay">
+        <!-- Left Panel -->
+        <div class="panel">
+            <div class="header">
+                <h1>Cosmos Generator</h1>
+                <p>Advanced Procedural Planet Engine</p>
+            </div>
+
+            <div class="type-selector">
+                <button class="type-btn active" onclick="updatePlanetType('terran', this)">🌍 TERRA</button>
+                <button class="type-btn" onclick="updatePlanetType('gas', this)">🪐 JOVIAN</button>
+                <button class="type-btn" onclick="updatePlanetType('ice', this)">❄️ FROZEN</button>
+            </div>
+
+            <div class="control-group">
+                <label>Terrain Strength <span id="val-strength">0.50</span></label>
+                <input type="range" id="strength" min="0" max="1" step="0.01" value="0.5">
+            </div>
+
+            <div class="control-group">
+                <label>Noise Scale <span id="val-scale">1.0</span></label>
+                <input type="range" id="scale" min="0.1" max="5" step="0.1" value="1">
+            </div>
+
+            <div class="control-group">
+                <label>Ocean Level <span id="val-ocean">0.45</span></label>
+                <input type="range" id="ocean" min="0" max="0.9" step="0.01" value="0.45">
+            </div>
+
+            <div class="control-group">
+                <label>Rotation Speed</label>
+                <input type="range" id="speed" min="0" max="3" step="0.1" value="0.5">
+            </div>
+
+            <div class="control-group">
+                <label>Planet Size</label>
+                <input type="range" id="size" min="3" max="10" step="0.5" value="5">
+            </div>
+
+            <button class="btn-primary" onclick="regenerate()">🔄 Regenerate</button>
+            <button class="btn-primary btn-secondary" onclick="randomize()">🎲 Randomize</button>
+
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Vertices</div>
+                    <div class="stat-value" id="stat-vertices">-</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Triangles</div>
+                    <div class="stat-value" id="stat-triangles">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spacer -->
+        <div></div>
+
+        <!-- Right Panel -->
+        <div class="panel panel-right">
+            <div class="header">
+                <h1>Atmosphere</h1>
+                <p>Environmental Controls</p>
+            </div>
+
+            <div class="control-group">
+                <label>Atmosphere Color</label>
+                <input type="color" id="atmo-color" value="#4da6ff">
+            </div>
+
+            <div class="control-group">
+                <label>Atmosphere Intensity <span id="val-atmo">1.2</span></label>
+                <input type="range" id="atmo-intensity" min="0" max="3" step="0.1" value="1.2">
+            </div>
+
+            <div class="control-group">
+                <label>Surface Color</label>
+                <input type="color" id="surface-color" value="#8b7355">
+            </div>
+
+            <div class="control-group">
+                <label>Geometry Detail <span id="val-detail">100</span></label>
+                <input type="range" id="detail" min="40" max="150" step="10" value="100">
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-atmo" checked>
+                <label for="show-atmo">Show Atmosphere</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="show-stars" checked>
+                <label for="show-stars">Show Starfield</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="auto-rotate" checked>
+                <label for="auto-rotate">Auto Rotation</label>
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="flat-shade">
+                <label for="flat-shade">Flat Shading (Low Poly)</label>
+            </div>
+
+            <button class="btn-primary" onclick="takeScreenshot()">📸 Screenshot</button>
+
+            <div class="info-text">
+                <b>Controls:</b><br>
+                • Left mouse: Rotate<br>
+                • Right mouse: Pan<br>
+                • Scroll: Zoom<br>
+                • Press <b>S</b>: Quick screenshot
+            </div>
+        </div>
+    </div>
+
+    <div class="footer-info">COSMOS EXPLORER V3.0 // THREE.JS + SIMPLEX NOISE CORE</div>
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Core Variables
+        let scene, camera, renderer, controls, clock;
+        let planet, atmosphere, ocean, starfield;
+        let useFlatShading = false;
+
+        let params = {
+            type: 'terran',
+            strength: 0.5,
+            scale: 1.0,
+            oceanLevel: 0.45,
+            rotationSpeed: 0.5,
+            radius: 5,
+            detail: 100,
+            atmoIntensity: 1.2,
+            atmoColor: new THREE.Color('#4da6ff'),
+            surfaceColor: new THREE.Color('#8b7355'),
+            showAtmosphere: true,
+            showStars: true,
+            autoRotate: true
+        };
+
+        const CONFIGS = {
+            terran: {
+                surfaceColor: '#8b7355',
+                atmoColor: '#4da6ff',
+                oceanLevel: 0.45,
+                strength: 0.5,
+                scale: 1.0
+            },
+            gas: {
+                surfaceColor: '#c9a86c',
+                atmoColor: '#ffccaa',
+                oceanLevel: 0.0,
+                strength: 0.15,
+                scale: 0.5
+            },
+            ice: {
+                surfaceColor: '#b8d4e8',
+                atmoColor: '#ffffff',
+                oceanLevel: 0.2,
+                strength: 0.7,
+                scale: 2.0
+            }
+        };
+
+        // Improved Noise Generator with FBM
+        class NoiseGenerator {
+            constructor() {
+                this.permutation = [];
+                for (let i = 0; i < 256; i++) this.permutation[i] = i;
+
+                // Shuffle
+                for (let i = 255; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.permutation[i], this.permutation[j]] = [this.permutation[j], this.permutation[i]];
+                }
+
+                this.p = new Uint8Array(512);
+                for (let i = 0; i < 512; i++) {
+                    this.p[i] = this.permutation[i & 255];
+                }
+            }
+
+            fade(t) {
+                return t * t * t * (t * (t * 6 - 15) + 10);
+            }
+
+            lerp(t, a, b) {
+                return a + t * (b - a);
+            }
+
+            grad(hash, x, y, z) {
+                const h = hash & 15;
+                const u = h < 8 ? x : y;
+                const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+                return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
+            }
+
+            noise(x, y, z) {
+                const X = Math.floor(x) & 255;
+                const Y = Math.floor(y) & 255;
+                const Z = Math.floor(z) & 255;
+
+                x -= Math.floor(x);
+                y -= Math.floor(y);
+                z -= Math.floor(z);
+
+                const u = this.fade(x);
+                const v = this.fade(y);
+                const w = this.fade(z);
+
+                const A = this.p[X] + Y;
+                const AA = this.p[A] + Z;
+                const AB = this.p[A + 1] + Z;
+                const B = this.p[X + 1] + Y;
+                const BA = this.p[B] + Z;
+                const BB = this.p[B + 1] + Z;
+
+                return this.lerp(w,
+                    this.lerp(v,
+                        this.lerp(u, this.grad(this.p[AA], x, y, z),
+                                     this.grad(this.p[BA], x - 1, y, z)),
+                        this.lerp(u, this.grad(this.p[AB], x, y - 1, z),
+                                     this.grad(this.p[BB], x - 1, y - 1, z))),
+                    this.lerp(v,
+                        this.lerp(u, this.grad(this.p[AA + 1], x, y, z - 1),
+                                     this.grad(this.p[BA + 1], x - 1, y, z - 1)),
+                        this.lerp(u, this.grad(this.p[AB + 1], x, y - 1, z - 1),
+                                     this.grad(this.p[BB + 1], x - 1, y - 1, z - 1))));
+            }
+
+            fbm(x, y, z, octaves = 6) {
+                let value = 0;
+                let amplitude = 1;
+                let frequency = 1;
+                let maxValue = 0;
+
+                for (let i = 0; i < octaves; i++) {
+                    value += amplitude * this.noise(x * frequency, y * frequency, z * frequency);
+                    maxValue += amplitude;
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+
+                return value / maxValue;
+            }
+
+            // Ridged multifractal — sharp mountain ridges (1 - |noise|)^2 with octave weighting.
+            ridgedFbm(x, y, z, octaves = 5) {
+                let value = 0, amplitude = 0.5, frequency = 1, weight = 1, maxValue = 0;
+                for (let i = 0; i < octaves; i++) {
+                    let n = 1 - Math.abs(this.noise(x * frequency, y * frequency, z * frequency));
+                    n = n * n * weight;
+                    weight = Math.min(1, n * 2);      // higher octaves gated by lower ones
+                    value += n * amplitude;
+                    maxValue += amplitude;
+                    amplitude *= 0.5;
+                    frequency *= 2.0;
+                }
+                return value / maxValue;              // ~0..1
+            }
+
+            // Deterministic per-cell pseudo-random in [0,1).
+            _rand3(i, j, k, salt) {
+                let n = (i * 374761393 + j * 668265263 + k * 2147483647 + salt * 1274126177) | 0;
+                n = (n ^ (n >> 13)) | 0;
+                n = (n * 1274126177) | 0;
+                n = n ^ (n >> 16);
+                return (n >>> 0) / 4294967295;
+            }
+
+            // 3D Worley / cellular noise → nearest (f1) and second-nearest (f2) feature distances.
+            worley(x, y, z) {
+                const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+                let f1 = Infinity, f2 = Infinity;
+                for (let di = -1; di <= 1; di++)
+                for (let dj = -1; dj <= 1; dj++)
+                for (let dk = -1; dk <= 1; dk++) {
+                    const ci = xi + di, cj = yi + dj, ck = zi + dk;
+                    const fx = ci + this._rand3(ci, cj, ck, 0);
+                    const fy = cj + this._rand3(ci, cj, ck, 1);
+                    const fz = ck + this._rand3(ci, cj, ck, 2);
+                    const dx = fx - x, dy = fy - y, dz = fz - z;
+                    const d = dx * dx + dy * dy + dz * dz;
+                    if (d < f1) { f2 = f1; f1 = d; }
+                    else if (d < f2) { f2 = d; }
+                }
+                return { f1: Math.sqrt(f1), f2: Math.sqrt(f2) };
+            }
+        }
+
+        const noiseGen = new NoiseGenerator();
+
+        // === Tier 1 realistic terrain =========================================
+        // Adds causal structure on top of plain FBM:
+        //   (1) domain warping   → fakes erosion flow, breaks noise isotropy
+        //   (2) continental mask → coherent land/ocean instead of thresholded noise
+        //   (3) Worley F2-F1     → plate-boundary-like mountain belts
+        //   (4) ridged fBm       → sharp ranges concentrated on those belts
+        const PLATE_FREQ = 3.0;   // ~how many tectonic "plates" wrap the sphere
+
+        // nx,ny,nz = unit direction from planet center. Returns elevation in 0..1.
+        function getTerrain(nx, ny, nz) {
+            const s = params.scale;
+            const bx = nx * s, by = ny * s, bz = nz * s;
+
+            // (1) Domain warp
+            const wStr = 0.75;
+            const qx = noiseGen.fbm(bx, by, bz, 4);
+            const qy = noiseGen.fbm(bx + 5.2, by + 1.3, bz + 2.7, 4);
+            const qz = noiseGen.fbm(bx + 2.8, by + 9.2, bz + 4.1, 4);
+            const wx = bx + wStr * qx, wy = by + wStr * qy, wz = bz + wStr * qz;
+
+            // (2) Continental mask (low frequency, independent of detail scale)
+            const continent = (noiseGen.fbm(nx * 1.1, ny * 1.1, nz * 1.1, 4) + 1) / 2;
+
+            // (3) Medium relief (warped)
+            const base = (noiseGen.fbm(wx, wy, wz, 5) + 1) / 2;
+
+            // (4) Plate boundaries via Worley F2-F1
+            const w = noiseGen.worley(nx * PLATE_FREQ, ny * PLATE_FREQ, nz * PLATE_FREQ);
+            const boundary = Math.min(1, Math.max(0, w.f2 - w.f1)); // ~0 on boundary
+            const belt = Math.pow(1 - boundary, 4);                 // ~1 along boundaries
+
+            // (5) Ridged mountains concentrated on plate belts
+            const ridge = noiseGen.ridgedFbm(wx * 2, wy * 2, wz * 2, 5);
+            const mountains = ridge * belt;
+
+            let elev = continent * 0.6 + base * 0.4;
+            elev += mountains * 0.35;
+            return Math.min(1, Math.max(0, elev));
+        }
+
+        // Biome palette + temperature/humidity → color.
+        const BIOME = {
+            beach:   [0.76, 0.70, 0.50],
+            desert:  [0.80, 0.71, 0.45],
+            savanna: [0.62, 0.66, 0.35],
+            grass:   [0.34, 0.52, 0.25],
+            forest:  [0.20, 0.40, 0.20],
+            taiga:   [0.33, 0.45, 0.38],
+            tundra:  [0.60, 0.58, 0.52],
+            rock:    [0.42, 0.38, 0.34],
+            snow:    [0.93, 0.95, 0.99]
+        };
+        function lerp3(a, b, t) {
+            return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+        }
+        // temperature 0(cold)..1(hot), humidity 0(dry)..1(wet)
+        function biomeColor(temperature, humidity) {
+            if (temperature < 0.25) return lerp3(BIOME.tundra, BIOME.taiga, humidity);
+            if (temperature < 0.6)  return lerp3(BIOME.savanna, BIOME.forest, humidity);
+            return lerp3(BIOME.desert, BIOME.forest, humidity);
+        }
+        // ======================================================================
+
+        // Shader
+        const AtmosphereShader = {
+            vertexShader: `
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vNormal;
+                varying vec3 vPosition;
+                uniform vec3 color;
+                uniform float intensity;
+                void main() {
+                    vec3 viewDirection = normalize(-vPosition);
+                    float fresnel = pow(1.0 - dot(vNormal, viewDirection), 3.0);
+                    gl_FragColor = vec4(color, fresnel * intensity);
+                }
+            `
+        };
+
+        // Initialization
+        function init() {
+            scene = new THREE.Scene();
+            clock = new THREE.Clock();
+
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 5, 20);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.0;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 8;
+            controls.maxDistance = 100;
+
+            // Lights
+            const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            sunLight.position.set(50, 30, 50);
+            scene.add(sunLight);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+
+            const rimLight = new THREE.DirectionalLight(0x667eea, 0.3);
+            rimLight.position.set(-20, -10, -30);
+            scene.add(rimLight);
+
+            createStarfield();
+            createPlanet();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            setupUIListeners();
+
+            // Hide loader
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loader').classList.add('hidden');
+                }, 800);
+            }, 1200);
+
+            animate();
+        }
+
+        function createStarfield() {
+            const geometry = new THREE.BufferGeometry();
+            const count = 12000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                const x = (Math.random() - 0.5) * 2000;
+                const y = (Math.random() - 0.5) * 2000;
+                const z = (Math.random() - 0.5) * 2000;
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                // Random star colors
+                const colorType = Math.random();
+                if (colorType > 0.95) {
+                    colors[i * 3] = 0.8;
+                    colors[i * 3 + 1] = 0.9;
+                    colors[i * 3 + 2] = 1.0;
+                } else if (colorType > 0.85) {
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 0.9;
+                    colors[i * 3 + 2] = 0.7;
+                } else {
+                    colors[i * 3] = 1.0;
+                    colors[i * 3 + 1] = 1.0;
+                    colors[i * 3 + 2] = 1.0;
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.8,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: true
+            });
+
+            starfield = new THREE.Points(geometry, material);
+            scene.add(starfield);
+        }
+
+        function createPlanet() {
+            // Remove old objects
+            if (planet) {
+                scene.remove(planet);
+                planet.geometry.dispose();
+                planet.material.dispose();
+            }
+            if (atmosphere) {
+                scene.remove(atmosphere);
+                atmosphere.geometry.dispose();
+                atmosphere.material.dispose();
+            }
+            if (ocean) {
+                scene.remove(ocean);
+                ocean.geometry.dispose();
+                ocean.material.dispose();
+            }
+
+            // Create planet geometry
+            const geometry = new THREE.SphereGeometry(params.radius, params.detail, params.detail);
+            const positions = geometry.attributes.position;
+            const colors = new Float32Array(positions.count * 3);
+
+            const baseColor = params.surfaceColor;
+            const waterColor = new THREE.Color('#1a5276');
+            const deepWaterColor = new THREE.Color('#0a2847');
+
+            for (let i = 0; i < positions.count; i++) {
+                const x = positions.getX(i);
+                const y = positions.getY(i);
+                const z = positions.getZ(i);
+
+                // === Tier 1 terrain: domain warp + ridged + plate-boundary belts ===
+                const invLen = 1 / Math.sqrt(x * x + y * y + z * z);
+                const nx = x * invLen, ny = y * invLen, nz = z * invLen;
+
+                const elev = getTerrain(nx, ny, nz);   // 0..1
+
+                // Radial displacement
+                const heightOffset = (elev - 0.5) * params.strength * 0.5;
+                const dScale = 1 + Math.max(-0.3, heightOffset);
+                positions.setXYZ(i, x * dScale, y * dScale, z * dScale);
+
+                // --- Coloring ---
+                let cr, cg, cb;
+                if (elev < params.oceanLevel) {
+                    // Water: deep → shallow gradient
+                    const depth = params.oceanLevel > 0 ? elev / params.oceanLevel : 1;
+                    cr = deepWaterColor.r * (1 - depth) + waterColor.r * depth;
+                    cg = deepWaterColor.g * (1 - depth) + waterColor.g * depth;
+                    cb = deepWaterColor.b * (1 - depth) + waterColor.b * depth;
+                } else if (params.type !== 'terran') {
+                    // Gas / ice worlds keep surface-color shading (no biomes)
+                    const lh = (elev - params.oceanLevel) / Math.max(0.001, 1 - params.oceanLevel);
+                    const variation = (noiseGen.noise(nx * 3, ny * 3, nz * 3) + 1) / 2;
+                    cr = baseColor.r * (0.7 + lh * 0.3 + variation * 0.1);
+                    cg = baseColor.g * (0.7 + lh * 0.3 + variation * 0.1);
+                    cb = baseColor.b * (0.7 + lh * 0.3 + variation * 0.1);
+                } else if (elev < params.oceanLevel + 0.02) {
+                    // Beach
+                    cr = BIOME.beach[0]; cg = BIOME.beach[1]; cb = BIOME.beach[2];
+                } else {
+                    // Land: temperature (latitude + altitude) × humidity → biome
+                    const landHeight = (elev - params.oceanLevel) / Math.max(0.001, 1 - params.oceanLevel);
+                    const latitude = Math.abs(ny);   // 0 equator .. 1 pole
+                    const temperature = Math.max(0, Math.min(1, (1 - landHeight * 0.6) * (1 - latitude * 0.9)));
+                    let humidity = (noiseGen.fbm(nx * 2.5 + 11, ny * 2.5 + 7, nz * 2.5 + 3, 4) + 1) / 2;
+                    humidity = Math.max(0, Math.min(1, humidity * (1 - landHeight * 0.35)));
+                    let c = biomeColor(temperature, humidity);
+                    // High peaks → rock → snow; very cold → snow
+                    if (landHeight > 0.8 || temperature < 0.12) {
+                        const snowT = Math.min(1, Math.max(0, (landHeight - 0.8) * 5, (0.15 - temperature) * 6));
+                        c = lerp3(c, BIOME.snow, snowT);
+                    } else if (landHeight > 0.6) {
+                        c = lerp3(c, BIOME.rock, (landHeight - 0.6) / 0.2);
+                    }
+                    cr = c[0]; cg = c[1]; cb = c[2];
+                }
+                colors[i * 3] = cr;
+                colors[i * 3 + 1] = cg;
+                colors[i * 3 + 2] = cb;
+            }
+
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.computeVertexNormals();
+
+            const material = new THREE.MeshStandardMaterial({
+                vertexColors: true,
+                roughness: 0.85,
+                metalness: 0.15,
+                flatShading: useFlatShading
+            });
+
+            planet = new THREE.Mesh(geometry, material);
+            planet.castShadow = true;
+            planet.receiveShadow = true;
+            scene.add(planet);
+
+            // Create ocean if needed
+            if (params.oceanLevel > 0.1) {
+                createOcean();
+            }
+
+            // Create atmosphere
+            if (params.showAtmosphere) {
+                createAtmosphere();
+            }
+
+            // Update stats
+            updateStats(geometry);
+        }
+
+        function createOcean() {
+            const oceanRadius = params.radius * 0.995;
+            const oceanGeometry = new THREE.SphereGeometry(oceanRadius, params.detail, params.detail);
+            const oceanMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a5276,
+                roughness: 0.05,
+                metalness: 0.3,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+            ocean.receiveShadow = true;
+            scene.add(ocean);
+        }
+
+        function createAtmosphere() {
+            const atmoGeometry = new THREE.SphereGeometry(params.radius * 1.15, 64, 64);
+            const atmoMaterial = new THREE.ShaderMaterial({
+                vertexShader: AtmosphereShader.vertexShader,
+                fragmentShader: AtmosphereShader.fragmentShader,
+                uniforms: {
+                    color: { value: params.atmoColor },
+                    intensity: { value: params.atmoIntensity }
+                },
+                transparent: true,
+                side: THREE.BackSide,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            atmosphere = new THREE.Mesh(atmoGeometry, atmoMaterial);
+            scene.add(atmosphere);
+        }
+
+        function updateStats(geometry) {
+            const vertices = geometry.attributes.position.count;
+            const triangles = geometry.index ? geometry.index.count / 3 : vertices / 3;
+
+            document.getElementById('stat-vertices').textContent = vertices.toLocaleString();
+            document.getElementById('stat-triangles').textContent = Math.round(triangles).toLocaleString();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (params.autoRotate && planet) {
+                const rotation = params.rotationSpeed * delta * 0.3;
+                planet.rotation.y += rotation;
+                if (ocean) ocean.rotation.y += rotation;
+                if (atmosphere) atmosphere.rotation.y += rotation;
+            }
+
+            if (starfield) {
+                starfield.rotation.y += 0.0001;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function setupUIListeners() {
+            // Sliders
+            document.getElementById('strength').addEventListener('input', (e) => {
+                params.strength = parseFloat(e.target.value);
+                document.getElementById('val-strength').textContent = params.strength.toFixed(2);
+            });
+            document.getElementById('strength').addEventListener('change', () => createPlanet());
+
+            document.getElementById('scale').addEventListener('input', (e) => {
+                params.scale = parseFloat(e.target.value);
+                document.getElementById('val-scale').textContent = params.scale.toFixed(1);
+            });
+            document.getElementById('scale').addEventListener('change', () => createPlanet());
+
+            document.getElementById('ocean').addEventListener('input', (e) => {
+                params.oceanLevel = parseFloat(e.target.value);
+                document.getElementById('val-ocean').textContent = params.oceanLevel.toFixed(2);
+            });
+            document.getElementById('ocean').addEventListener('change', () => createPlanet());
+
+            document.getElementById('speed').addEventListener('input', (e) => {
+                params.rotationSpeed = parseFloat(e.target.value);
+            });
+
+            document.getElementById('size').addEventListener('input', (e) => {
+                params.radius = parseFloat(e.target.value);
+            });
+            document.getElementById('size').addEventListener('change', () => createPlanet());
+
+            document.getElementById('detail').addEventListener('input', (e) => {
+                params.detail = parseInt(e.target.value);
+                document.getElementById('val-detail').textContent = params.detail;
+            });
+            document.getElementById('detail').addEventListener('change', () => createPlanet());
+
+            document.getElementById('atmo-intensity').addEventListener('input', (e) => {
+                params.atmoIntensity = parseFloat(e.target.value);
+                document.getElementById('val-atmo').textContent = params.atmoIntensity.toFixed(1);
+                if (atmosphere) atmosphere.material.uniforms.intensity.value = params.atmoIntensity;
+            });
+
+            // Colors
+            document.getElementById('atmo-color').addEventListener('input', (e) => {
+                params.atmoColor.set(e.target.value);
+                if (atmosphere) atmosphere.material.uniforms.color.value.set(e.target.value);
+            });
+
+            document.getElementById('surface-color').addEventListener('input', (e) => {
+                params.surfaceColor.set(e.target.value);
+            });
+            document.getElementById('surface-color').addEventListener('change', () => createPlanet());
+
+            // Checkboxes
+            document.getElementById('show-atmo').addEventListener('change', (e) => {
+                params.showAtmosphere = e.target.checked;
+                if (atmosphere) atmosphere.visible = params.showAtmosphere;
+            });
+
+            document.getElementById('show-stars').addEventListener('change', (e) => {
+                params.showStars = e.target.checked;
+                if (starfield) starfield.visible = params.showStars;
+            });
+
+            document.getElementById('auto-rotate').addEventListener('change', (e) => {
+                params.autoRotate = e.target.checked;
+            });
+
+            document.getElementById('flat-shade').addEventListener('change', (e) => {
+                useFlatShading = e.target.checked;
+                createPlanet();
+            });
+
+            // Keyboard shortcuts
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 's') {
+                    takeScreenshot();
+                }
+            });
+        }
+
+        // Global functions for HTML onclick
+        window.updatePlanetType = (type, btn) => {
+            document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            params.type = type;
+            const config = CONFIGS[type];
+
+            params.surfaceColor.set(config.surfaceColor);
+            params.atmoColor.set(config.atmoColor);
+            params.oceanLevel = config.oceanLevel;
+            params.strength = config.strength;
+            params.scale = config.scale;
+
+            // Update UI
+            document.getElementById('surface-color').value = config.surfaceColor;
+            document.getElementById('atmo-color').value = config.atmoColor;
+            document.getElementById('ocean').value = config.oceanLevel;
+            document.getElementById('strength').value = config.strength;
+            document.getElementById('scale').value = config.scale;
+            document.getElementById('val-ocean').textContent = config.oceanLevel.toFixed(2);
+            document.getElementById('val-strength').textContent = config.strength.toFixed(2);
+            document.getElementById('val-scale').textContent = config.scale.toFixed(1);
+
+            createPlanet();
+        };
+
+        window.regenerate = () => {
+            createPlanet();
+        };
+
+        window.randomize = () => {
+            params.strength = Math.random() * 0.8;
+            params.scale = 0.5 + Math.random() * 3;
+            params.oceanLevel = Math.random() * 0.7;
+            params.surfaceColor.setHSL(Math.random(), 0.5 + Math.random() * 0.3, 0.4 + Math.random() * 0.2);
+            params.atmoColor.setHSL(Math.random(), 0.4 + Math.random() * 0.4, 0.5 + Math.random() * 0.3);
+
+            // Update UI
+            document.getElementById('strength').value = params.strength;
+            document.getElementById('scale').value = params.scale;
+            document.getElementById('ocean').value = params.oceanLevel;
+            document.getElementById('val-strength').textContent = params.strength.toFixed(2);
+            document.getElementById('val-scale').textContent = params.scale.toFixed(1);
+            document.getElementById('val-ocean').textContent = params.oceanLevel.toFixed(2);
+            document.getElementById('surface-color').value = '#' + params.surfaceColor.getHexString();
+            document.getElementById('atmo-color').value = '#' + params.atmoColor.getHexString();
+
+            createPlanet();
+        };
+
+        window.takeScreenshot = () => {
+            renderer.render(scene, camera);
+            const link = document.createElement('a');
+            link.download = `cosmos-planet-${Date.now()}.png`;
+            link.href = renderer.domElement.toDataURL('image/png');
+            link.click();
+        };
+
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
